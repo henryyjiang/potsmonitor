@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1605F72B9B1838B0EDDEFC2E /* Pods_POTSMonitor.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6FD5203AC8DC216B6B35514B /* Pods_POTSMonitor.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		99C46FDA2F9DB87700B16D1F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,14 +28,30 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		6FD5203AC8DC216B6B35514B /* Pods_POTSMonitor.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_POTSMonitor.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		99C46FCA2F9DB87500B16D1F /* POTSMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = POTSMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99C46FD92F9DB87700B16D1F /* POTSMonitorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = POTSMonitorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		99C46FE32F9DB87700B16D1F /* POTSMonitorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = POTSMonitorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B7E0C04BE8A022CB16FCA295 /* Pods-POTSMonitor.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-POTSMonitor.release.xcconfig"; path = "Target Support Files/Pods-POTSMonitor/Pods-POTSMonitor.release.xcconfig"; sourceTree = "<group>"; };
+		C8B46B35D325A88E480641A6 /* Pods-POTSMonitor.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-POTSMonitor.debug.xcconfig"; path = "Target Support Files/Pods-POTSMonitor/Pods-POTSMonitor.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		99C4700D2F9DBA3B00B16D1F /* Exceptions for "POTSMonitor" folder in "POTSMonitor" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 99C46FC92F9DB87500B16D1F /* POTSMonitor */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		99C46FCC2F9DB87500B16D1F /* POTSMonitor */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				99C4700D2F9DBA3B00B16D1F /* Exceptions for "POTSMonitor" folder in "POTSMonitor" target */,
+			);
 			path = POTSMonitor;
 			sourceTree = "<group>";
 		};
@@ -52,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1605F72B9B1838B0EDDEFC2E /* Pods_POTSMonitor.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,6 +93,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		53FF4096CDCD04D9DEEDA5B7 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				C8B46B35D325A88E480641A6 /* Pods-POTSMonitor.debug.xcconfig */,
+				B7E0C04BE8A022CB16FCA295 /* Pods-POTSMonitor.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		99C46FC12F9DB87500B16D1F = {
 			isa = PBXGroup;
 			children = (
@@ -79,6 +109,8 @@
 				99C46FDC2F9DB87700B16D1F /* POTSMonitorTests */,
 				99C46FE62F9DB87700B16D1F /* POTSMonitorUITests */,
 				99C46FCB2F9DB87500B16D1F /* Products */,
+				53FF4096CDCD04D9DEEDA5B7 /* Pods */,
+				EC9C654DB7169B3016C3CA49 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -92,6 +124,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		EC9C654DB7169B3016C3CA49 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				6FD5203AC8DC216B6B35514B /* Pods_POTSMonitor.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -99,9 +139,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 99C46FED2F9DB87700B16D1F /* Build configuration list for PBXNativeTarget "POTSMonitor" */;
 			buildPhases = (
+				F17129C6F0ACFE4A061066A1 /* [CP] Check Pods Manifest.lock */,
 				99C46FC62F9DB87500B16D1F /* Sources */,
 				99C46FC72F9DB87500B16D1F /* Frameworks */,
 				99C46FC82F9DB87500B16D1F /* Resources */,
+				2362F9F92982EC4223D661B2 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -111,8 +153,6 @@
 				99C46FCC2F9DB87500B16D1F /* POTSMonitor */,
 			);
 			name = POTSMonitor;
-			packageProductDependencies = (
-			);
 			productName = POTSMonitor;
 			productReference = 99C46FCA2F9DB87500B16D1F /* POTSMonitor.app */;
 			productType = "com.apple.product-type.application";
@@ -134,8 +174,6 @@
 				99C46FDC2F9DB87700B16D1F /* POTSMonitorTests */,
 			);
 			name = POTSMonitorTests;
-			packageProductDependencies = (
-			);
 			productName = POTSMonitorTests;
 			productReference = 99C46FD92F9DB87700B16D1F /* POTSMonitorTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -157,8 +195,6 @@
 				99C46FE62F9DB87700B16D1F /* POTSMonitorUITests */,
 			);
 			name = POTSMonitorUITests;
-			packageProductDependencies = (
-			);
 			productName = POTSMonitorUITests;
 			productReference = 99C46FE32F9DB87700B16D1F /* POTSMonitorUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -230,6 +266,52 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		2362F9F92982EC4223D661B2 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-POTSMonitor/Pods-POTSMonitor-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-POTSMonitor/Pods-POTSMonitor-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-POTSMonitor/Pods-POTSMonitor-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F17129C6F0ACFE4A061066A1 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-POTSMonitor-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		99C46FC62F9DB87500B16D1F /* Sources */ = {
@@ -387,6 +469,7 @@
 		};
 		99C46FEE2F9DB87700B16D1F /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = C8B46B35D325A88E480641A6 /* Pods-POTSMonitor.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -396,8 +479,12 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = POTSMonitor/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "POTS Monitor needs Bluetooth to connect to your Polar H10 and continuously stream heart rate data for flareup detection.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -408,7 +495,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
@@ -431,6 +518,7 @@
 		};
 		99C46FEF2F9DB87700B16D1F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B7E0C04BE8A022CB16FCA295 /* Pods-POTSMonitor.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -440,8 +528,12 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = POTSMonitor/Info.plist;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "POTS Monitor needs Bluetooth to connect to your Polar H10 and continuously stream heart rate data for flareup detection.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -452,7 +544,7 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.3;

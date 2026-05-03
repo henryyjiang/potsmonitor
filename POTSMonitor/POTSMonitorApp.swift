@@ -1,32 +1,44 @@
-//
-//  POTSMonitorApp.swift
-//  POTSMonitor
-//
-//  Created by Henry on 4/25/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct POTSMonitorApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
-
+    @StateObject private var polar = PolarManager()
+    @StateObject private var dataStore = DataStore()
+    @StateObject private var detector = FlareupDetector()
+    @StateObject private var notifications = NotificationManager()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(polar)
+                .environmentObject(dataStore)
+                .environmentObject(detector)
+                .environmentObject(notifications)
+                .onAppear { wireUp() }
         }
-        .modelContainer(sharedModelContainer)
+    }
+    
+    private func wireUp() {
+        notifications.requestAuthorization()
+
+        // Sensor data → DataStore logging + FlareupDetector
+        polar.onHRSample = { sample in
+            dataStore.logHR(sample)
+            detector.processHR(sample)
+        }
+        polar.onAccSample = { sample in
+            dataStore.logAcc(sample)
+        }
+        polar.onECGSample = { sample in
+            dataStore.logECG(sample)
+        }
+
+        // FlareupDetector → DataStore recording + notification
+        detector.onFlareupDetected = { flareup in
+            dataStore.recordFlareup(flareup)
+        }
+        detector.onFlareupConfirmed = { peakHR, baseline in
+            notifications.sendFlareupDetectedNotification(peakHR: peakHR, baseline: baseline)
+        }
     }
 }
