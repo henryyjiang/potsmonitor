@@ -127,61 +127,6 @@ class DataStore: ObservableObject {
             .sorted { $0.lastPathComponent < $1.lastPathComponent } ?? []
     }
 
-    func exportAggregatedFiles() -> [URL] {
-        let tempDir = fm.temporaryDirectory.appendingPathComponent("POTSExport-\(UUID().uuidString)")
-        try? fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
-
-        let allFiles = exportFiles()
-        let groups: [(prefix: String, output: String)] = [
-            ("hr_", "hr.csv"),
-            ("acc_", "acc.csv"),
-            ("ecg_", "ecg.csv"),
-            ("temp_", "temp.csv"),
-        ]
-
-        var result: [URL] = []
-
-        for group in groups {
-            let matching = allFiles
-                .filter { $0.lastPathComponent.hasPrefix(group.prefix) }
-                .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            if let url = aggregateCSVs(matching, to: tempDir.appendingPathComponent(group.output)) {
-                result.append(url)
-            }
-        }
-
-        if let flareupFile = allFiles.first(where: { $0.lastPathComponent == "flareups.csv" }),
-           let data = try? Data(contentsOf: flareupFile) {
-            let dest = tempDir.appendingPathComponent("flareups.csv")
-            try? data.write(to: dest)
-            result.append(dest)
-        }
-
-        return result
-    }
-
-    private func aggregateCSVs(_ files: [URL], to destination: URL) -> URL? {
-        guard !files.isEmpty else { return nil }
-
-        var header: String?
-        var allLines: [String] = []
-
-        for file in files {
-            guard let content = readCSVContent(file) else { continue }
-            let lines = content.components(separatedBy: "\n")
-            if header == nil, let firstLine = lines.first {
-                header = firstLine
-            }
-            allLines.append(contentsOf: lines.dropFirst().filter { !$0.isEmpty })
-        }
-
-        guard let header = header, !allLines.isEmpty else { return nil }
-
-        let combined = header + "\n" + allLines.joined(separator: "\n") + "\n"
-        try? combined.write(to: destination, atomically: true, encoding: .utf8)
-        return destination
-    }
-
     func readCSVContent(_ url: URL) -> String? {
         if url.pathExtension == "zlib" {
             guard let compressed = try? Data(contentsOf: url),
@@ -242,15 +187,20 @@ class DataStore: ObservableObject {
     
     // MARK: - Storage Maintenance
 
-    private func maintainStorage() {
+    func maintainStorage() {
         let dir = dataDir
         let todayStr = today()
         let cutoffDate = Calendar.current.date(byAdding: .day, value: -Self.retentionDays, to: Date()) ?? Date()
         let cutoffStr = dayF.string(from: cutoffDate)
+        let shouldStore = UserDefaults.standard.object(forKey: "storeDailyData") as? Bool ?? true
 
         DispatchQueue.global(qos: .utility).async { [fm] in
-            Self.compressOldFiles(in: dir, today: todayStr, fm: fm)
-            Self.purgeOldFiles(in: dir, cutoff: cutoffStr, fm: fm)
+            if shouldStore {
+                Self.compressOldFiles(in: dir, today: todayStr, fm: fm)
+                Self.purgeOldFiles(in: dir, cutoff: cutoffStr, fm: fm)
+            } else {
+                Self.deleteOldFiles(in: dir, today: todayStr, fm: fm)
+            }
         }
     }
 
@@ -283,6 +233,17 @@ class DataStore: ObservableObject {
             guard name != "flareups.csv" else { continue }
             guard let dateStr = extractDate(from: name) else { continue }
             if dateStr < cutoff {
+                try? fm.removeItem(at: file)
+            }
+        }
+    }
+
+    private static func deleteOldFiles(in dir: URL, today: String, fm: FileManager) {
+        guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
+        for file in files {
+            let name = file.lastPathComponent
+            guard name != "flareups.csv" else { continue }
+            if let dateStr = extractDate(from: name), dateStr < today {
                 try? fm.removeItem(at: file)
             }
         }

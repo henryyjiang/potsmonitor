@@ -128,10 +128,18 @@ class FeatureEngine {
                 rmssdPctChange = (windowRMSSD - baseRMSSD) / baseRMSSD
             }
 
-            let wCenter = wStart.addingTimeInterval(windowDuration / 2)
-            let isFlareup = flareups.contains { f in
+            let predictHorizon: TimeInterval = 15 * 60
+
+            // Skip windows that fall inside a flareup — we only want pre-flareup vs. normal.
+            let duringFlareup = flareups.contains { f in
                 let fEnd = f.end ?? f.start.addingTimeInterval(Double(f.durationSeconds))
-                return wCenter >= f.start.addingTimeInterval(-120) && wCenter <= fEnd.addingTimeInterval(120)
+                return t >= f.start && t <= fEnd
+            }
+            if duringFlareup { t = t.addingTimeInterval(slideStep); continue }
+
+            // Positive: a flareup will start within the next predictHorizon seconds.
+            let preFlareup = flareups.contains { f in
+                return t < f.start && t >= f.start.addingTimeInterval(-predictHorizon)
             }
 
             windows.append(FeatureWindow(
@@ -146,7 +154,7 @@ class FeatureEngine {
                 baselineHR: baselineHR,
                 hrRiseFromBaseline: hrRise,
                 rmssdPercentChange: rmssdPctChange,
-                label: isFlareup ? 1 : 0
+                label: preFlareup ? 1 : 0
             ))
             t = t.addingTimeInterval(slideStep)
         }

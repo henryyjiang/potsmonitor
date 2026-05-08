@@ -5,6 +5,7 @@ struct LiveView: View {
     @EnvironmentObject var dataStore: DataStore
     @EnvironmentObject var detector: FlareupDetector
     @EnvironmentObject var notifications: NotificationManager
+    @EnvironmentObject var tracker: PredictionTracker
     @StateObject private var predictor = POTSPredictor()
     
     @State private var pulse = false
@@ -41,9 +42,14 @@ struct LiveView: View {
                 baselineHR: detector.currentBaseline,
                 baselineRMSSD: detector.currentBaselineRMSSD
             )
+            tracker.resolvePending()
         }
         .onChange(of: predictor.lastPrediction) { newValue in
-            notifications.sendFlareupPredictedNotification(probability: newValue)
+            let threshold = NotificationManager.predictionThreshold
+            if newValue >= threshold {
+                notifications.sendFlareupPredictedNotification(probability: newValue)
+                tracker.recordPrediction(probability: newValue)
+            }
         }
     }
     
