@@ -41,6 +41,19 @@ struct DetectedFlareup: Identifiable, Codable {
     var hrvConfirmed: Bool?
 }
 
+// MARK: - Prediction Tracking
+
+struct PredictionRecord: Identifiable, Codable {
+    let id: UUID
+    let timestamp: Date
+    let probability: Double
+    var outcome: Outcome
+
+    enum Outcome: String, Codable {
+        case pending, truePositive, falsePositive
+    }
+}
+
 // MARK: - ML Feature Window
 
 struct FeatureWindow: Codable {
