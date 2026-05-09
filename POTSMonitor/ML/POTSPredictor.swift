@@ -162,7 +162,7 @@ class POTSPredictor: ObservableObject {
 
     // MARK: - CSV Parsing (static so Task.detached can call without actor hop)
 
-    private static func loadCSVs(from dir: URL, since cutoff: Date, fm: FileManager) throws -> ([(Date, Int, [Int])], [(Date, Int32, Int32, Int32)]) {
+    nonisolated private static func loadCSVs(from dir: URL, since cutoff: Date, fm: FileManager) throws -> ([(Date, Int, [Int])], [(Date, Int32, Int32, Int32)]) {
         let tsF = DateFormatter(); tsF.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"; tsF.timeZone = .current
         let dayF = DateFormatter(); dayF.dateFormat = "yyyy-MM-dd"
         let cutoffStr = dayF.string(from: cutoff)
@@ -206,7 +206,7 @@ class POTSPredictor: ObservableObject {
         return (hr, acc)
     }
 
-    private static func fileDate(from url: URL) -> String? {
+    nonisolated private static func fileDate(from url: URL) -> String? {
         var name = url.lastPathComponent
         if name.hasSuffix(".csv.zlib") { name = String(name.dropLast(9)) }
         else if name.hasSuffix(".csv") { name = String(name.dropLast(4)) }
@@ -215,7 +215,7 @@ class POTSPredictor: ObservableObject {
         return dateStr.count == 10 ? dateStr : nil
     }
 
-    private static func readCSVFile(_ url: URL) -> String? {
+    nonisolated private static func readCSVFile(_ url: URL) -> String? {
         if url.pathExtension == "zlib" {
             guard let compressed = try? Data(contentsOf: url),
                   let decompressed = try? (compressed as NSData).decompressed(using: .zlib) as Data else { return nil }
@@ -224,7 +224,7 @@ class POTSPredictor: ObservableObject {
         return try? String(contentsOf: url, encoding: .utf8)
     }
 
-    private static func parseLine(_ line: String) -> [String] {
+    nonisolated private static func parseLine(_ line: String) -> [String] {
         var result: [String] = []; var cur = ""; var inQ = false
         for ch in line {
             if ch == "\"" { inQ.toggle() }

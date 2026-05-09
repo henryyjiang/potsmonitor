@@ -159,7 +159,7 @@ class DataStore: ObservableObject {
         }.value
     }
 
-    private static func streamAggregateCSVs(_ files: [URL], to destination: URL) -> URL? {
+    nonisolated private static func streamAggregateCSVs(_ files: [URL], to destination: URL) -> URL? {
         guard !files.isEmpty else { return nil }
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         guard let outHandle = try? FileHandle(forWritingTo: destination) else { return nil }
@@ -173,7 +173,7 @@ class DataStore: ObservableObject {
 
     // Streams a CSV (plain or .zlib) line-by-line into outHandle using the Compression
     // framework. Peak RAM is ~350 KB regardless of file size — no full decompression into memory.
-    private static func streamCSVLines(from url: URL, to outHandle: FileHandle, skipHeader: Bool) {
+    nonisolated private static func streamCSVLines(from url: URL, to outHandle: FileHandle, skipHeader: Bool) {
         let nlByte = UInt8(ascii: "\n")
         var carry = Data()
         var headerSeen = false
@@ -207,7 +207,7 @@ class DataStore: ObservableObject {
         let dstBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: outN)
         defer { srcBuf.deallocate(); dstBuf.deallocate() }
 
-        var stream = compression_stream()
+        var stream = compression_stream(dst_ptr: dstBuf, dst_size: 0, src_ptr: UnsafePointer(srcBuf), src_size: 0, state: nil)
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else { return }
         defer { compression_stream_destroy(&stream) }
 
@@ -217,7 +217,7 @@ class DataStore: ObservableObject {
             let isLast = chunk.count < inN
             let flags: Int32 = isLast ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0
             chunk.copyBytes(to: srcBuf, count: chunk.count)
-            stream.src_ptr = srcBuf
+            stream.src_ptr = UnsafePointer(srcBuf)
             stream.src_size = chunk.count
 
             var innerDone = false
