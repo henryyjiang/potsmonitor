@@ -9,6 +9,9 @@ struct ContentView: View {
             StatsView()
                 .tabItem { Image(systemName: "chart.bar.fill"); Text("Stats") }
 
+            ExportView()
+                .tabItem { Image(systemName: "square.and.arrow.up"); Text("Export") }
+
             SettingsView()
                 .tabItem { Image(systemName: "gear"); Text("Settings") }
         }

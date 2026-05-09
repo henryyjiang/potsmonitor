@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Compression
 
 @MainActor
 class DataStore: ObservableObject {
@@ -125,6 +126,117 @@ class DataStore: ObservableObject {
         (try? fm.contentsOfDirectory(at: dataDir, includingPropertiesForKeys: nil))?
             .filter { $0.pathExtension == "csv" || $0.pathExtension == "zlib" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent } ?? []
+    }
+
+    func exportAggregatedFiles() async -> [URL] {
+        let allFiles = exportFiles()
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("POTSExport-\(UUID().uuidString)")
+        try? fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let localFM = fm
+
+        return await Task.detached(priority: .userInitiated) {
+            let groups: [(prefix: String, output: String)] = [
+                ("hr_",   "hr.csv"),
+                ("acc_",  "acc.csv"),
+                ("ecg_",  "ecg.csv"),
+                ("temp_", "temp.csv"),
+            ]
+            var result: [URL] = []
+            for group in groups {
+                let matching = allFiles
+                    .filter { $0.lastPathComponent.hasPrefix(group.prefix) }
+                    .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                if let url = DataStore.streamAggregateCSVs(matching, to: tempDir.appendingPathComponent(group.output)) {
+                    result.append(url)
+                }
+            }
+            if let flareupFile = allFiles.first(where: { $0.lastPathComponent == "flareups.csv" }) {
+                let dest = tempDir.appendingPathComponent("flareups.csv")
+                try? localFM.copyItem(at: flareupFile, to: dest)
+                result.append(dest)
+            }
+            return result
+        }.value
+    }
+
+    private static func streamAggregateCSVs(_ files: [URL], to destination: URL) -> URL? {
+        guard !files.isEmpty else { return nil }
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        guard let outHandle = try? FileHandle(forWritingTo: destination) else { return nil }
+        defer { outHandle.closeFile() }
+        for (i, file) in files.enumerated() {
+            DataStore.streamCSVLines(from: file, to: outHandle, skipHeader: i > 0)
+        }
+        let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return size > 0 ? destination : nil
+    }
+
+    // Streams a CSV (plain or .zlib) line-by-line into outHandle using the Compression
+    // framework. Peak RAM is ~350 KB regardless of file size — no full decompression into memory.
+    private static func streamCSVLines(from url: URL, to outHandle: FileHandle, skipHeader: Bool) {
+        let nlByte = UInt8(ascii: "\n")
+        var carry = Data()
+        var headerSeen = false
+
+        let emit: (Data) -> Void = { raw in
+            var buf = carry + raw
+            carry = Data()
+            while let idx = buf.firstIndex(of: nlByte) {
+                let end = buf.index(after: idx)
+                if skipHeader && !headerSeen { headerSeen = true; buf.removeSubrange(..<end); continue }
+                headerSeen = true
+                outHandle.write(Data(buf[..<end]))
+                buf.removeSubrange(..<end)
+            }
+            carry = Data(buf)
+        }
+
+        guard let inHandle = try? FileHandle(forReadingFrom: url) else { return }
+        defer { inHandle.closeFile() }
+
+        if url.pathExtension != "zlib" {
+            while case let c = inHandle.readData(ofLength: 65_536), !c.isEmpty { emit(c) }
+            if !carry.isEmpty { outHandle.write(carry) }
+            return
+        }
+
+        // Streaming zlib decompression — C-allocated buffers have a fixed address,
+        // which is required for compression_stream's src_ptr/dst_ptr.
+        let inN = 65_536, outN = 262_144
+        let srcBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: inN)
+        let dstBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: outN)
+        defer { srcBuf.deallocate(); dstBuf.deallocate() }
+
+        var stream = compression_stream()
+        guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else { return }
+        defer { compression_stream_destroy(&stream) }
+
+        var done = false
+        while !done {
+            let chunk = inHandle.readData(ofLength: inN)
+            let isLast = chunk.count < inN
+            let flags: Int32 = isLast ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0
+            chunk.copyBytes(to: srcBuf, count: chunk.count)
+            stream.src_ptr = srcBuf
+            stream.src_size = chunk.count
+
+            var innerDone = false
+            while !innerDone {
+                stream.dst_ptr = dstBuf
+                stream.dst_size = outN
+                let status = compression_stream_process(&stream, flags)
+                let produced = outN - stream.dst_size
+                if produced > 0 { emit(Data(bytes: dstBuf, count: produced)) }
+                switch status {
+                case COMPRESSION_STATUS_END, COMPRESSION_STATUS_ERROR:
+                    done = true; innerDone = true
+                default:
+                    innerDone = stream.src_size == 0 && stream.dst_size > 0
+                }
+            }
+            if isLast { done = true }
+        }
+        if !carry.isEmpty { outHandle.write(carry) }
     }
 
     func readCSVContent(_ url: URL) -> String? {
