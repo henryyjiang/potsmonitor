@@ -11,11 +11,21 @@ class POTSPredictor: ObservableObject {
     @Published var lastTrainedDate: Date?
     @Published var lastPrediction: Double = 0
     @Published var trainingStatus: String = ""
-    @Published var modelAccuracy: Double?
+    @Published var modelF1: Double?
 
     private var model: MLModel?
     private let featureEngine = FeatureEngine()
     private let fm = FileManager.default
+
+    /// The 14 features the app supplies at inference, in order. Any model we
+    /// load must declare exactly these inputs — see `validateFeatures`.
+    static let featureNames = ["meanHR","maxHR","minHR","hrDelta","rmssd","sdnn","meanRR",
+                               "accMagMean","accMagStd","accVertDelta","postureJerkPeak",
+                               "hrRiseFromBaseline","rmssdPctChange","hrSlope","pNN50"]
+
+    // ACC streams at ~200 Hz; feed every 4th sample to match the 4× subsampling
+    // used when building training data (loadCSVs / compute_features.py).
+    private var accSubsampleCounter = 0
 
     private var modelURL: URL {
         fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -40,7 +50,14 @@ class POTSPredictor: ObservableObject {
         for url in candidates {
             guard fm.fileExists(atPath: url.path) else { continue }
             do {
-                model = try MLModel(contentsOf: url, configuration: cfg)
+                let candidate = try MLModel(contentsOf: url, configuration: cfg)
+                if let missing = Self.validateFeatures(candidate) {
+                    // A model whose inputs don't match featureDict would make every
+                    // prediction throw silently (this exact bug shipped once). Refuse it.
+                    print("[Predictor] Rejecting \(url.lastPathComponent): input mismatch (\(missing))")
+                    continue
+                }
+                model = candidate
                 modelLoaded = true
                 loadMeta()
                 return
@@ -51,28 +68,51 @@ class POTSPredictor: ObservableObject {
         modelLoaded = false
     }
 
+    /// Returns a human-readable description of any mismatch between the model's
+    /// declared inputs and the features the app computes, or nil if they align.
+    private static func validateFeatures(_ model: MLModel) -> String? {
+        let declared = Set(model.modelDescription.inputDescriptionsByName.keys)
+        let supplied = Set(featureNames)
+        let missing = declared.subtracting(supplied)   // model wants inputs we don't send
+        let extra   = supplied.subtracting(declared)   // we send inputs the model ignores
+        guard missing.isEmpty && extra.isEmpty else {
+            return "model needs \(missing.sorted()), app also has \(extra.sorted())"
+        }
+        return nil
+    }
+
     func resetModel() {
         try? fm.removeItem(at: modelURL)
         try? fm.removeItem(at: metaURL)
         model = nil
         modelLoaded = false
         lastTrainedDate = nil
-        modelAccuracy = nil
+        modelF1 = nil
         lastPrediction = 0
         loadModel()
     }
 
     // MARK: - Real-time prediction
 
-    func ingestAndPredict(hr: HRSample?, acc: AccSample?, temp: Double?, baselineHR: Double = 0, baselineRMSSD: Double = 0) {
+    /// Feed one accelerometer sample (subsampled 4× for train/serve parity).
+    /// Called at the raw ~200 Hz stream rate; cheap buffering only.
+    func ingestAcc(_ acc: AccSample) {
+        accSubsampleCounter += 1
+        if accSubsampleCounter % 4 != 0 { return }
+        featureEngine.ingestAcc(acc)
+    }
+
+    /// Ingest an HR sample and, once a full window is available, run a prediction.
+    /// Returns true when a new prediction was produced (so callers can act on it).
+    @discardableResult
+    func ingestAndPredict(hr: HRSample, temp: Double? = nil, baselineHR: Double = 0, baselineRMSSD: Double = 0) -> Bool {
         featureEngine.currentBaseline = baselineHR
         featureEngine.baselineRMSSD = baselineRMSSD
-        if let hr = hr { featureEngine.ingestHR(hr) }
-        if let acc = acc { featureEngine.ingestAcc(acc) }
+        featureEngine.ingestHR(hr)
         if let temp = temp { featureEngine.ingestTemp(temp) }
 
         guard modelLoaded, let model = model,
-              let w = featureEngine.tryComputeWindow() else { return }
+              let w = featureEngine.tryComputeWindow() else { return false }
 
         do {
             let input = try featureDict(w)
@@ -83,8 +123,10 @@ class POTSPredictor: ObservableObject {
             } else if let lbl = pred.featureValue(for: "label")?.int64Value {
                 lastPrediction = lbl == 1 ? 1.0 : 0.0
             }
+            return true
         } catch {
             print("[Predictor] Predict error: \(error)")
+            return false
         }
     }
 
@@ -107,57 +149,118 @@ class POTSPredictor: ObservableObject {
         trainingStatus = "Computing features..."
 
         do {
-            let result = try await Task.detached(priority: .userInitiated) {
+            let result = try await Task.detached(priority: .userInitiated) { () -> TrainResult in
                 let (hr, acc) = try POTSPredictor.loadCSVs(from: dataDir, since: cutoff, fm: localFM)
                 let windows = FeatureEngine.generateTrainingData(hrSamples: hr, accSamples: acc, flareups: flareups)
                 let pos = windows.filter { $0.label == 1 }.count
                 let neg = windows.filter { $0.label == 0 }.count
 
-                guard windows.count >= 20 else {
+                guard windows.count >= 20, pos > 0 else {
                     throw NSError(domain: "POTSTraining", code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Need more data (\(windows.count) windows, need 20+)"])
+                        userInfo: [NSLocalizedDescriptionKey: "Need more data (\(windows.count) windows, \(pos) flareup)"])
                 }
 
-                var dict: [String: MLDataValueConvertible] = [:]
-                dict["meanHR"]             = windows.map { $0.meanHR }
-                dict["maxHR"]              = windows.map { $0.maxHR }
-                dict["minHR"]              = windows.map { $0.minHR }
-                dict["hrDelta"]            = windows.map { $0.hrDelta }
-                dict["rmssd"]              = windows.map { $0.rmssd }
-                dict["sdnn"]               = windows.map { $0.sdnn }
-                dict["meanRR"]             = windows.map { $0.meanRR }
-                dict["accMagMean"]         = windows.map { $0.accMagnitudeMean }
-                dict["accMagStd"]          = windows.map { $0.accMagnitudeStd }
-                dict["accVertDelta"]       = windows.map { $0.accVerticalDelta }
-                dict["hrRiseFromBaseline"] = windows.map { $0.hrRiseFromBaseline ?? 0.0 }
-                dict["rmssdPctChange"]     = windows.map { $0.rmssdPercentChange ?? 0.0 }
-                dict["label"]              = windows.map { $0.label ?? 0 }
+                // Split by DAY so overlapping sliding windows never straddle the
+                // train/test boundary. Hold out ~30% of the days that contain a
+                // flareup so the test set contains real pre-flareup episodes.
+                let dayF = DateFormatter(); dayF.dateFormat = "yyyy-MM-dd"; dayF.timeZone = .current
+                let byDay = Dictionary(grouping: windows) { dayF.string(from: $0.windowEnd) }
+                let positiveDays = byDay.filter { $0.value.contains { $0.label == 1 } }.keys.sorted()
+                let testDayCount = max(1, positiveDays.count * 3 / 10)
+                // Spread held-out days across the timeline rather than taking a contiguous block.
+                let stride = max(1, positiveDays.count / testDayCount)
+                let testDays = Set(Swift.stride(from: 0, to: positiveDays.count, by: stride).prefix(testDayCount).map { positiveDays[$0] })
 
-                let table = try MLDataTable(dictionary: dict)
-                let (train, test) = table.randomSplit(by: 0.8, seed: 42)
+                var trainWindows = windows.filter { !testDays.contains(dayF.string(from: $0.windowEnd)) }
+                let testWindows  = windows.filter {  testDays.contains(dayF.string(from: $0.windowEnd)) }
+
+                // Oversample the minority class on the TRAIN split only.
+                let trPos = trainWindows.filter { $0.label == 1 }.count
+                let trNeg = trainWindows.filter { $0.label == 0 }.count
+                if trPos > 0 && trNeg / trPos > 2 {
+                    let target = trNeg / 2
+                    let posWindows = trainWindows.filter { $0.label == 1 }
+                    while trainWindows.filter({ $0.label == 1 }).count < target {
+                        trainWindows.append(contentsOf: posWindows)
+                    }
+                    trainWindows.shuffle()
+                }
+
                 let classifier = try MLBoostedTreeClassifier(
-                    trainingData: train, targetColumn: "label",
+                    trainingData: try POTSPredictor.dataTable(trainWindows), targetColumn: "label",
                     parameters: MLBoostedTreeClassifier.ModelParameters(
-                        maxDepth: 6, maxIterations: 100, minLossReduction: 0.0,
-                        minChildWeight: 1.0, stepSize: 0.3
+                        // Shallow: only a handful of independent flareup-days exist,
+                        // so deep/many-iteration boosting just memorises them.
+                        maxDepth: 4, maxIterations: 150, minLossReduction: 0.0,
+                        minChildWeight: 10.0, stepSize: 0.1
                     )
                 )
-                let accuracy = 1.0 - classifier.evaluation(on: test).classificationError
-                let meta = MLModelMetadata(author: "POTS Monitor", shortDescription: "Flareup predictor", version: "1.0")
-                try classifier.write(to: localModelURL, metadata: meta)
-                let m = ModelMeta(trainedAt: Date(), windows: windows.count, positive: pos, negative: neg, accuracy: accuracy)
+
+                // Honest F1 on the held-out days (accuracy is meaningless at ~3% positive).
+                var f1 = 0.0, precision = 0.0, recall = 0.0
+                if !testWindows.isEmpty {
+                    let preds = try classifier.predictions(from: try POTSPredictor.dataTable(testWindows))
+                    var tp = 0, fp = 0, fn = 0
+                    for (i, w) in testWindows.enumerated() {
+                        let p = preds[i].intValue ?? 0
+                        let t = w.label ?? 0
+                        if t == 1 && p == 1 { tp += 1 }
+                        else if t == 0 && p == 1 { fp += 1 }
+                        else if t == 1 && p == 0 { fn += 1 }
+                    }
+                    precision = tp + fp > 0 ? Double(tp) / Double(tp + fp) : 0
+                    recall    = tp + fn > 0 ? Double(tp) / Double(tp + fn) : 0
+                    f1        = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0
+                }
+
+                // Ship a model fit on ALL days (train + held-out) for maximum data use.
+                let shipModel = try MLBoostedTreeClassifier(
+                    trainingData: try POTSPredictor.dataTable(trainWindows + testWindows), targetColumn: "label",
+                    parameters: MLBoostedTreeClassifier.ModelParameters(
+                        maxDepth: 4, maxIterations: 150, minLossReduction: 0.0,
+                        minChildWeight: 10.0, stepSize: 0.1
+                    )
+                )
+                let meta = MLModelMetadata(author: "POTS Monitor", shortDescription: "Flareup predictor", version: "2.0")
+                try shipModel.write(to: localModelURL, metadata: meta)
+                let m = ModelMeta(trainedAt: Date(), windows: windows.count, positive: pos, negative: neg, f1: f1)
                 try JSONEncoder().encode(m).write(to: localMetaURL)
-                return (accuracy: accuracy, pos: pos, neg: neg, count: windows.count)
+                return TrainResult(f1: f1, precision: precision, recall: recall, pos: pos, neg: neg)
             }.value
 
-            trainingStatus = "Accuracy: \(String(format: "%.1f%%", result.accuracy * 100)) · \(result.pos) flareup, \(result.neg) normal windows"
+            trainingStatus = String(format: "F1 %.2f (P %.2f · R %.2f) · %d flareup, %d normal windows",
+                                    result.f1, result.precision, result.recall, result.pos, result.neg)
             loadModel()
             lastTrainedDate = Date()
-            modelAccuracy = result.accuracy
+            modelF1 = result.f1
             isTraining = false
         } catch {
             trainingStatus = "Failed: \(error.localizedDescription)"; isTraining = false
         }
+    }
+
+    private struct TrainResult { let f1, precision, recall: Double; let pos, neg: Int }
+
+    /// Builds an MLDataTable of exactly the 14 model features + label.
+    nonisolated private static func dataTable(_ windows: [FeatureWindow]) throws -> MLDataTable {
+        var dict: [String: MLDataValueConvertible] = [:]
+        dict["meanHR"]             = windows.map { $0.meanHR }
+        dict["maxHR"]              = windows.map { $0.maxHR }
+        dict["minHR"]              = windows.map { $0.minHR }
+        dict["hrDelta"]            = windows.map { $0.hrDelta }
+        dict["rmssd"]              = windows.map { $0.rmssd }
+        dict["sdnn"]               = windows.map { $0.sdnn }
+        dict["meanRR"]             = windows.map { $0.meanRR }
+        dict["accMagMean"]         = windows.map { $0.accMagnitudeMean }
+        dict["accMagStd"]          = windows.map { $0.accMagnitudeStd }
+        dict["accVertDelta"]       = windows.map { $0.accVerticalDelta }
+        dict["postureJerkPeak"]    = windows.map { $0.postureJerkPeak }
+        dict["hrRiseFromBaseline"] = windows.map { $0.hrRiseFromBaseline ?? 0.0 }
+        dict["rmssdPctChange"]     = windows.map { $0.rmssdPercentChange ?? 0.0 }
+        dict["hrSlope"]            = windows.map { $0.hrSlope }
+        dict["pNN50"]              = windows.map { $0.pNN50 }
+        dict["label"]              = windows.map { $0.label ?? 0 }
+        return try MLDataTable(dictionary: dict)
     }
 
     // MARK: - CSV Parsing (static so Task.detached can call without actor hop)
@@ -248,17 +351,20 @@ class POTSPredictor: ObservableObject {
             "accMagMean":          MLFeatureValue(double: w.accMagnitudeMean),
             "accMagStd":           MLFeatureValue(double: w.accMagnitudeStd),
             "accVertDelta":        MLFeatureValue(double: w.accVerticalDelta),
+            "postureJerkPeak":     MLFeatureValue(double: w.postureJerkPeak),
             "hrRiseFromBaseline":  MLFeatureValue(double: w.hrRiseFromBaseline ?? 0.0),
             "rmssdPctChange":      MLFeatureValue(double: w.rmssdPercentChange ?? 0.0),
+            "hrSlope":             MLFeatureValue(double: w.hrSlope),
+            "pNN50":               MLFeatureValue(double: w.pNN50),
         ])
     }
 
     private struct ModelMeta: Codable {
-        let trainedAt: Date; let windows: Int; let positive: Int; let negative: Int; let accuracy: Double
+        let trainedAt: Date; let windows: Int; let positive: Int; let negative: Int; let f1: Double
     }
     private func loadMeta() {
         guard let d = try? Data(contentsOf: metaURL),
               let m = try? JSONDecoder().decode(ModelMeta.self, from: d) else { return }
-        lastTrainedDate = m.trainedAt; modelAccuracy = m.accuracy
+        lastTrainedDate = m.trainedAt; modelF1 = m.f1
     }
 }

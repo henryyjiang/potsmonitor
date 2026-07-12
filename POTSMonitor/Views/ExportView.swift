@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ExportView: View {
     @EnvironmentObject var dataStore: DataStore
-    @StateObject private var predictor = POTSPredictor()
+    @EnvironmentObject var predictor: POTSPredictor
 
     @State private var showShare = false
     @State private var showClearConfirm = false
@@ -115,8 +115,8 @@ struct ExportView: View {
             if let d = predictor.lastTrainedDate {
                 labelRow("Trained", d.formatted(date: .abbreviated, time: .shortened))
             }
-            if let a = predictor.modelAccuracy {
-                labelRow("Accuracy", String(format: "%.1f%%", a * 100))
+            if let f1 = predictor.modelF1 {
+                labelRow("F1 (held-out)", String(format: "%.2f", f1))
             }
         } else {
             Text("No model loaded.").font(.caption).foregroundColor(.secondary)

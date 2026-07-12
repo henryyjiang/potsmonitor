@@ -4,12 +4,10 @@ struct LiveView: View {
     @EnvironmentObject var polar: PolarManager
     @EnvironmentObject var dataStore: DataStore
     @EnvironmentObject var detector: FlareupDetector
-    @EnvironmentObject var notifications: NotificationManager
-    @EnvironmentObject var tracker: PredictionTracker
-    @StateObject private var predictor = POTSPredictor()
-    
+    @EnvironmentObject var predictor: POTSPredictor
+
     @State private var pulse = false
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -33,23 +31,6 @@ struct LiveView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("POTS Monitor")
-        }
-        .onChange(of: polar.currentHR) { _ in
-            predictor.ingestAndPredict(
-                hr: HRSample(timestamp: Date(), hr: polar.currentHR, rrIntervals: polar.currentRR,
-                             contactStatus: true, contactStatusSupported: true),
-                acc: nil, temp: nil,
-                baselineHR: detector.currentBaseline,
-                baselineRMSSD: detector.currentBaselineRMSSD
-            )
-            tracker.resolvePending()
-        }
-        .onChange(of: predictor.lastPrediction) { newValue in
-            let threshold = NotificationManager.predictionThreshold
-            if newValue >= threshold {
-                notifications.sendFlareupPredictedNotification(probability: newValue)
-                tracker.recordPrediction(probability: newValue)
-            }
         }
     }
     
@@ -126,7 +107,7 @@ struct LiveView: View {
     
     private var predictionBar: some View {
         HStack {
-            Image(systemName: predictor.lastPrediction > 0.6 ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+            Image(systemName: predictor.lastPrediction >= 0.7 ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
                 .foregroundColor(predColor)
             VStack(alignment: .leading, spacing: 2) {
                 Text(predLabel)
@@ -144,10 +125,10 @@ struct LiveView: View {
     }
     
     private var predColor: Color {
-        predictor.lastPrediction > 0.7 ? .red : predictor.lastPrediction > 0.4 ? .orange : .green
+        predictor.lastPrediction >= 0.9 ? .red : predictor.lastPrediction >= 0.7 ? .orange : predictor.lastPrediction >= 0.4 ? .yellow : .green
     }
     private var predLabel: String {
-        predictor.lastPrediction > 0.7 ? "Flareup Likely" : predictor.lastPrediction > 0.4 ? "Elevated Risk" : "Stable"
+        predictor.lastPrediction >= 0.9 ? "Flareup Likely" : predictor.lastPrediction >= 0.7 ? "High Risk" : predictor.lastPrediction >= 0.4 ? "Elevated Risk" : "Stable"
     }
     
     // MARK: - Metrics

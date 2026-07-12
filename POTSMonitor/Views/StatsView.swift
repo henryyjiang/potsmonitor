@@ -53,9 +53,9 @@ struct StatsView: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("Confusion Matrix")
+            Text("Prediction Warnings")
         } footer: {
-            Text("TN estimated from tracked days with no events. Pending predictions resolve after 15 minutes.")
+            Text("A warning fires when the model's flareup probability crosses the notification threshold. TN estimated from tracked days with no events. Pending predictions resolve after 10 minutes.")
         }
     }
 

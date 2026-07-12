@@ -68,9 +68,12 @@ struct FeatureWindow: Codable {
     let accMagnitudeMean: Double
     let accMagnitudeStd: Double
     let accVerticalDelta: Double
+    let postureJerkPeak: Double
     let skinTemp: Double?
     let baselineHR: Double?
     let hrRiseFromBaseline: Double?
     let rmssdPercentChange: Double?
+    let hrSlope: Double
+    let pNN50: Double
     let label: Int?
 }

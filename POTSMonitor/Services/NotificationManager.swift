@@ -10,7 +10,11 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
 
     static let detectedCooldown: TimeInterval = 5 * 60
     static let predictedCooldown: TimeInterval = 10 * 60
-    static let predictionThreshold: Double = 0.7
+    // At 0.80 the class-weighted model flags ~14% of pre-flareup windows at ~22%
+    // precision (honest out-of-fold PR curve, see sweep.py). Because a pre-flareup
+    // episode spans many windows, per-episode recall is higher than this per-window
+    // number. Favour recall — a false alarm is cheaper than a missed flareup.
+    static let predictionThreshold: Double = 0.8
 
     override init() {
         super.init()

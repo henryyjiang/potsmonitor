@@ -4,31 +4,20 @@ import Combine
 @MainActor
 class PredictionTracker: ObservableObject {
 
-    static let resolutionWindow: TimeInterval = 15 * 60
+    static let resolutionWindow: TimeInterval = 10 * 60
 
+    // Predictions that crossed the notification threshold and were sent.
     @Published private(set) var records: [PredictionRecord] = []
     @Published private(set) var missedFlareupDates: [Date] = []
     @Published private(set) var trackedSince: Date?
 
-    // MARK: - Computed Stats
+    // MARK: - Stats
 
     var tp: Int { records.filter { $0.outcome == .truePositive  }.count }
     var fp: Int { records.filter { $0.outcome == .falsePositive }.count }
     var fn: Int { missedFlareupDates.count }
 
-    var tn: Int {
-        guard let since = trackedSince else { return 0 }
-        let totalDays = max(0, Int(Date().timeIntervalSince(since) / 86400))
-        let calendar = Calendar.current
-        var eventDays = Set<Int>()
-        for r in records where r.outcome != .pending {
-            eventDays.insert(calendar.ordinality(of: .day, in: .era, for: r.timestamp) ?? 0)
-        }
-        for d in missedFlareupDates {
-            eventDays.insert(calendar.ordinality(of: .day, in: .era, for: d) ?? 0)
-        }
-        return max(0, totalDays - eventDays.count)
-    }
+    var tn: Int { computeTN(records: records, missedDates: missedFlareupDates) }
 
     var precision: Double? {
         let d = tp + fp; return d > 0 ? Double(tp) / Double(d) : nil
@@ -45,17 +34,18 @@ class PredictionTracker: ObservableObject {
 
     // MARK: - Events
 
-    func recordPrediction(probability: Double) {
-        // Don't stack predictions while one is still pending resolution
-        guard !records.contains(where: { $0.outcome == .pending }) else { return }
+    @discardableResult
+    func recordPrediction(probability: Double) -> Bool {
+        guard !records.contains(where: { $0.outcome == .pending }) else { return false }
         if trackedSince == nil { trackedSince = Date() }
         records.append(PredictionRecord(id: UUID(), timestamp: Date(), probability: probability, outcome: .pending))
         save()
+        return true
     }
 
     func processFlareup(detectedAt date: Date) {
         if trackedSince == nil { trackedSince = date }
-        // Find the most recent pending prediction that covers this flareup (within 15 min prior)
+
         let idx = records.indices.last {
             records[$0].outcome == .pending
             && date.timeIntervalSince(records[$0].timestamp) >= 0
@@ -66,6 +56,7 @@ class PredictionTracker: ObservableObject {
         } else {
             missedFlareupDates.append(date)
         }
+
         resolvePending()
         save()
     }
@@ -89,7 +80,21 @@ class PredictionTracker: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "prediction_tracked_since")
     }
 
-    // MARK: - Persistence
+    // MARK: - Private
+
+    private func computeTN(records: [PredictionRecord], missedDates: [Date]) -> Int {
+        guard let since = trackedSince else { return 0 }
+        let totalDays = max(0, Int(Date().timeIntervalSince(since) / 86400))
+        let calendar = Calendar.current
+        var eventDays = Set<Int>()
+        for r in records where r.outcome != .pending {
+            eventDays.insert(calendar.ordinality(of: .day, in: .era, for: r.timestamp) ?? 0)
+        }
+        for d in missedDates {
+            eventDays.insert(calendar.ordinality(of: .day, in: .era, for: d) ?? 0)
+        }
+        return max(0, totalDays - eventDays.count)
+    }
 
     private func save() {
         if let d = try? JSONEncoder().encode(records) {

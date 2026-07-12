@@ -1,0 +1,20 @@
+# Personal health data — never commit (repo is public)
+POTSData/
+*.xcappdata/
+features.csv
+features_balanced.csv
+
+# Training output written to repo root by train_model.swift
+# (the shipped copy lives at POTSMonitor/ML/POTSFlareupModel.mlmodel and IS tracked)
+/POTSFlareupModel.mlmodel
+
+# Tooling / editor
+.claude/
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
