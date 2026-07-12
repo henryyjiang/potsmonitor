@@ -50,6 +50,7 @@ struct POTSMonitorApp: App {
         }
         polar.onECGSample = { sample in
             dataStore.logECG(sample)
+            predictor.ingestECG(sample)   // live ECG → morphology features at inference
         }
 
         detector.onFlareupDetected = { flareup in

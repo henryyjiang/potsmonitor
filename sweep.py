@@ -30,11 +30,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 
-FEATURES_CSV = Path("/Users/paff/Desktop/Projects/POTSMonitor/features.csv")
+# features_ecg.csv = features.csv + the 5 ECG morphology-deviation columns.
+FEATURES_CSV = Path("/Users/paff/Desktop/Projects/POTSMonitor/features_ecg.csv")
 # Must stay in exact parity with FeatureEngine.swift / POTSPredictor.featureDict.
 FEATURE_COLS = [
     "meanHR", "maxHR", "minHR", "hrDelta", "rmssd", "sdnn", "meanRR",
     "accMagMean", "accMagStd", "accVertDelta", "postureJerkPeak",
+    "ecgRAmpDev", "ecgRAmpStdDev", "ecgTAmpDev", "ecgTAmpStdDev", "ecgRTDev",
     "hrRiseFromBaseline", "rmssdPctChange", "hrSlope", "pNN50",
 ]
 RANDOM_STATE = 42

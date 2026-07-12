@@ -77,6 +77,13 @@ struct FeatureWindow: Codable {
     let accMagnitudeStd: Double
     let accVerticalDelta: Double
     let postureJerkPeak: Double
+    // ECG morphology deviation from the 30-min rolling baseline (0 when no ECG).
+    // See ECGFeatures.swift (per-window morphology) + FeatureEngine (baseline).
+    let ecgRAmpDev: Double
+    let ecgRAmpStdDev: Double
+    let ecgTAmpDev: Double
+    let ecgTAmpStdDev: Double
+    let ecgRTDev: Double
     let skinTemp: Double?
     let baselineHR: Double?
     let hrRiseFromBaseline: Double?

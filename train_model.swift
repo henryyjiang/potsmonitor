@@ -11,12 +11,14 @@ import CreateML
 //     whole days keeps each flareup episode entirely on one side.
 //   • Oversample the minority class on the TRAIN side only — never on test.
 
-let featuresURL = URL(fileURLWithPath: "/Users/paff/Desktop/Projects/POTSMonitor/features.csv")
+// features_ecg.csv = features.csv + the 5 ECG morphology columns (build_ecg_features.py).
+let featuresURL = URL(fileURLWithPath: "/Users/paff/Desktop/Projects/POTSMonitor/features_ecg.csv")
 let modelOut    = URL(fileURLWithPath: "/Users/paff/Desktop/Projects/POTSMonitor/POTSFlareupModel.mlmodel")
 
-// 15 model features, matching FeatureEngine.swift / POTSPredictor.featureDict.
+// 20 model features, matching FeatureEngine.swift / POTSPredictor.featureDict.
 let FEATURES = ["meanHR","maxHR","minHR","hrDelta","rmssd","sdnn","meanRR",
                 "accMagMean","accMagStd","accVertDelta","postureJerkPeak",
+                "ecgRAmpDev","ecgRAmpStdDev","ecgTAmpDev","ecgTAmpStdDev","ecgRTDev",
                 "hrRiseFromBaseline","rmssdPctChange","hrSlope","pNN50"]
 
 // Held-out days — positive-days spread across the recording timeline so the

@@ -8,6 +8,14 @@ class FeatureEngine {
     private var hrBuf: [(Date, Int)] = []
     private var rrBuf: [(Date, Int)] = []
     private var accBuf: [(Date, Int32, Int32, Int32)] = []
+    private var ecgBuf: [(Date, Double)] = []
+    // Rolling history of per-window ECG morphology for the 30-min baseline
+    // (rAmpMean, rAmpStd, tAmpMean, tAmpStd, rtMean); nil for windows with no ECG.
+    // Kept over the last `ecgBaselineWindow` windows and median-reduced over the
+    // present ones — mirrors pandas rolling(180, min_periods=20) in build_ecg_features.py.
+    private var ecgMorphHistory: [[Double]?] = []
+    static let ecgBaselineWindow = 180     // 30 min at 10 s slide
+    static let ecgBaselineMinCount = 20
     private var lastTemp: Double?
     private var lastWindowEnd: Date = .distantPast
 
@@ -25,6 +33,15 @@ class FeatureEngine {
         trim()
     }
 
+    /// Expand an ECG batch into per-sample (time, µV) points at 130 Hz.
+    func ingestECG(_ s: ECGSample) {
+        let dt = 1.0 / Double(s.sampleRate)
+        for (i, v) in s.microVolts.enumerated() {
+            ecgBuf.append((s.timestamp.addingTimeInterval(Double(i) * dt), Double(v)))
+        }
+        trim()
+    }
+
     func ingestTemp(_ c: Double) { lastTemp = c }
 
     private func trim() {
@@ -32,6 +49,7 @@ class FeatureEngine {
         hrBuf.removeAll { $0.0 < cut }
         rrBuf.removeAll { $0.0 < cut }
         accBuf.removeAll { $0.0 < cut }
+        ecgBuf.removeAll { $0.0 < cut }
     }
 
     func tryComputeWindow() -> FeatureWindow? {
@@ -63,6 +81,25 @@ class FeatureEngine {
         let hrSlope = Self.linSlope(hrs, times: hrTimes)
         let winPNN50 = Self.pnn50(rrs)
 
+        // ECG morphology over the window's raw waveform, expressed as a deviation
+        // from the 30-min rolling-median baseline (absolute morphology alone doesn't
+        // help — only the drift does). 0 when no ECG or before the baseline warms up.
+        let ecgWin = ecgBuf.filter { $0.0 >= wStart }.map { $0.1 }
+        let morph = ECGFeatures.morphology(ecgWin)
+        ecgMorphHistory.append(morph.map { [$0.rAmpMean, $0.rAmpStd, $0.tAmpMean, $0.tAmpStd, $0.rtMean] })
+        if ecgMorphHistory.count > Self.ecgBaselineWindow {
+            ecgMorphHistory.removeFirst(ecgMorphHistory.count - Self.ecgBaselineWindow)
+        }
+        var ecgDev = [0.0, 0.0, 0.0, 0.0, 0.0]
+        if let cur = ecgMorphHistory.last ?? nil {          // current window has ECG
+            for i in 0..<5 {
+                let present = ecgMorphHistory.compactMap { $0?[i] }
+                if present.count >= Self.ecgBaselineMinCount {
+                    ecgDev[i] = cur[i] - Self.median(present)
+                }
+            }
+        }
+
         return FeatureWindow(
             windowEnd: now,
             meanHR: hrs.mean, maxHR: hrs.max() ?? 0, minHR: hrs.min() ?? 0,
@@ -72,6 +109,8 @@ class FeatureEngine {
             accMagnitudeStd: mags.isEmpty ? 0 : mags.stdDev,
             accVerticalDelta: vDelta,
             postureJerkPeak: postureJerk,
+            ecgRAmpDev: ecgDev[0], ecgRAmpStdDev: ecgDev[1],
+            ecgTAmpDev: ecgDev[2], ecgTAmpStdDev: ecgDev[3], ecgRTDev: ecgDev[4],
             skinTemp: lastTemp,
             baselineHR: currentBaseline > 0 ? currentBaseline : nil,
             hrRiseFromBaseline: currentBaseline > 0 ? hrs.mean - currentBaseline : nil,
@@ -176,6 +215,9 @@ class FeatureEngine {
                 accMagnitudeStd: mags.isEmpty ? 0 : mags.stdDev,
                 accVerticalDelta: vD,
                 postureJerkPeak: postureJerk,
+                // On-device retraining has no ECG pipeline (memory-bound), so ECG
+                // features are 0 here; the shipped model trains with real ECG offline.
+                ecgRAmpDev: 0, ecgRAmpStdDev: 0, ecgTAmpDev: 0, ecgTAmpStdDev: 0, ecgRTDev: 0,
                 skinTemp: nil,
                 baselineHR: baselineHR,
                 hrRiseFromBaseline: hrRise,
@@ -250,6 +292,13 @@ class FeatureEngine {
             if ang > maxAngle { maxAngle = ang }
         }
         return maxAngle
+    }
+
+    static func median(_ v: [Double]) -> Double {
+        guard !v.isEmpty else { return 0 }
+        let s = v.sorted()
+        let m = s.count / 2
+        return s.count % 2 == 0 ? (s[m-1] + s[m]) / 2 : s[m]
     }
 
     static func pnn50(_ rrs: [Double]) -> Double {

@@ -21,6 +21,7 @@ class POTSPredictor: ObservableObject {
     /// load must declare exactly these inputs — see `validateFeatures`.
     static let featureNames = ["meanHR","maxHR","minHR","hrDelta","rmssd","sdnn","meanRR",
                                "accMagMean","accMagStd","accVertDelta","postureJerkPeak",
+                               "ecgRAmpDev","ecgRAmpStdDev","ecgTAmpDev","ecgTAmpStdDev","ecgRTDev",
                                "hrRiseFromBaseline","rmssdPctChange","hrSlope","pNN50"]
 
     // ACC streams at ~200 Hz; feed every 4th sample to match the 4× subsampling
@@ -100,6 +101,12 @@ class POTSPredictor: ObservableObject {
         accSubsampleCounter += 1
         if accSubsampleCounter % 4 != 0 { return }
         featureEngine.ingestAcc(acc)
+    }
+
+    /// Feed one ECG batch (kept at full 130 Hz — the morphology DSP needs the
+    /// whole waveform). Buffering only; features are computed at window time.
+    func ingestECG(_ ecg: ECGSample) {
+        featureEngine.ingestECG(ecg)
     }
 
     /// Ingest an HR sample and, once a full window is available, run a prediction.
@@ -255,6 +262,11 @@ class POTSPredictor: ObservableObject {
         dict["accMagStd"]          = windows.map { $0.accMagnitudeStd }
         dict["accVertDelta"]       = windows.map { $0.accVerticalDelta }
         dict["postureJerkPeak"]    = windows.map { $0.postureJerkPeak }
+        dict["ecgRAmpDev"]         = windows.map { $0.ecgRAmpDev }
+        dict["ecgRAmpStdDev"]      = windows.map { $0.ecgRAmpStdDev }
+        dict["ecgTAmpDev"]         = windows.map { $0.ecgTAmpDev }
+        dict["ecgTAmpStdDev"]      = windows.map { $0.ecgTAmpStdDev }
+        dict["ecgRTDev"]           = windows.map { $0.ecgRTDev }
         dict["hrRiseFromBaseline"] = windows.map { $0.hrRiseFromBaseline ?? 0.0 }
         dict["rmssdPctChange"]     = windows.map { $0.rmssdPercentChange ?? 0.0 }
         dict["hrSlope"]            = windows.map { $0.hrSlope }
@@ -352,6 +364,11 @@ class POTSPredictor: ObservableObject {
             "accMagStd":           MLFeatureValue(double: w.accMagnitudeStd),
             "accVertDelta":        MLFeatureValue(double: w.accVerticalDelta),
             "postureJerkPeak":     MLFeatureValue(double: w.postureJerkPeak),
+            "ecgRAmpDev":          MLFeatureValue(double: w.ecgRAmpDev),
+            "ecgRAmpStdDev":       MLFeatureValue(double: w.ecgRAmpStdDev),
+            "ecgTAmpDev":          MLFeatureValue(double: w.ecgTAmpDev),
+            "ecgTAmpStdDev":       MLFeatureValue(double: w.ecgTAmpStdDev),
+            "ecgRTDev":            MLFeatureValue(double: w.ecgRTDev),
             "hrRiseFromBaseline":  MLFeatureValue(double: w.hrRiseFromBaseline ?? 0.0),
             "rmssdPctChange":      MLFeatureValue(double: w.rmssdPercentChange ?? 0.0),
             "hrSlope":             MLFeatureValue(double: w.hrSlope),
