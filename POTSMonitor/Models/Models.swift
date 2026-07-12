@@ -39,6 +39,14 @@ struct DetectedFlareup: Identifiable, Codable {
     var baselineHR: Double?
     var thresholdUsed: Double?
     var hrvConfirmed: Bool?
+    // nil for flareups recorded before this field existed; treat those as .auto.
+    var source: FlareupSource?
+    var effectiveSource: FlareupSource { source ?? .auto }
+}
+
+enum FlareupSource: String, Codable {
+    case auto      // HR-threshold detector fired
+    case manual    // user tapped "Log Flareup" — independent ground-truth label
 }
 
 // MARK: - Prediction Tracking

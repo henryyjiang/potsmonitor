@@ -4,9 +4,11 @@ struct LiveView: View {
     @EnvironmentObject var polar: PolarManager
     @EnvironmentObject var dataStore: DataStore
     @EnvironmentObject var detector: FlareupDetector
+    @EnvironmentObject var tracker: PredictionTracker
     @EnvironmentObject var predictor: POTSPredictor
 
     @State private var pulse = false
+    @State private var lastManualLog: Date?
 
     var body: some View {
         NavigationStack {
@@ -24,6 +26,7 @@ struct LiveView: View {
                     }
                     
                     metricsRow
+                    logFlareupButton
                     trackingButton
                     recordingInfo
                 }
@@ -166,8 +169,38 @@ struct LiveView: View {
         .background(Color(.secondarySystemGroupedBackground)).cornerRadius(9)
     }
     
+    // MARK: - Manual Flareup Log
+
+    private var logFlareupButton: some View {
+        VStack(spacing: 4) {
+            Button {
+                dataStore.recordManualFlareup(peakHR: polar.currentHR, baselineHR: detector.currentBaseline)
+                tracker.processFlareup(detectedAt: Date())
+                lastManualLog = Date()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.bubble.fill").font(.title3)
+                    Text("Log Flareup Now")
+                        .font(.system(.title3, design: .rounded, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                .background(RoundedRectangle(cornerRadius: 13).fill(Color.pink))
+            }
+            .buttonStyle(.plain)
+
+            if let t = lastManualLog {
+                Text("Logged \(t.formatted(date: .omitted, time: .standard))")
+                    .font(.system(.caption2, design: .monospaced)).foregroundColor(.secondary)
+            } else {
+                Text("Tap when you feel a flareup — records a manual label")
+                    .font(.system(.caption2, design: .monospaced)).foregroundColor(.secondary)
+            }
+        }
+    }
+
     // MARK: - Pause/Resume
-    
+
     private var trackingButton: some View {
         Button {
             if dataStore.isTracking {

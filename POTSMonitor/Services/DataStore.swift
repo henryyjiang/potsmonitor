@@ -103,10 +103,32 @@ class DataStore: ObservableObject {
         let hrvStr = f.hrvConfirmed.map { $0 ? "1" : "0" } ?? ""
         let line = "\(startStr),\(endStr),\(f.peakHR),\(f.durationSeconds),\(baseStr),\(threshStr),\(hrvStr)\n"
         if let h = try? FileHandle(forWritingTo: path) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
-        
+
         saveFlareups()
     }
-    
+
+    /// User-logged flareup — an independent ground-truth label the HR-threshold
+    /// detector may have missed. Written to its own manual_flareups.csv so it can
+    /// be distinguished from (and combined with) auto-detected flareups in training.
+    func recordManualFlareup(peakHR: Int, baselineHR: Double) {
+        let now = Date()
+        let f = DetectedFlareup(
+            id: UUID(), start: now, end: now,
+            peakHR: peakHR, durationSeconds: 0,
+            baselineHR: baselineHR > 0 ? baselineHR : nil,
+            thresholdUsed: nil, hrvConfirmed: nil, source: .manual)
+        detectedFlareups.append(f)
+
+        let path = dataDir.appendingPathComponent("manual_flareups.csv")
+        ensureFile(path, header: "start,end,peak_hr,baseline_hr,source\n")
+        let startStr = tsF.string(from: now)
+        let baseStr = baselineHR > 0 ? String(format: "%.1f", baselineHR) : ""
+        let line = "\(startStr),\(startStr),\(peakHR),\(baseStr),manual\n"
+        if let h = try? FileHandle(forWritingTo: path) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
+
+        saveFlareups()
+    }
+
     // MARK: - Clear Data
     
     func clearAllData() {
@@ -150,10 +172,12 @@ class DataStore: ObservableObject {
                     result.append(url)
                 }
             }
-            if let flareupFile = allFiles.first(where: { $0.lastPathComponent == "flareups.csv" }) {
-                let dest = tempDir.appendingPathComponent("flareups.csv")
-                try? localFM.copyItem(at: flareupFile, to: dest)
-                result.append(dest)
+            for label in ["flareups.csv", "manual_flareups.csv"] {
+                if let file = allFiles.first(where: { $0.lastPathComponent == label }) {
+                    let dest = tempDir.appendingPathComponent(label)
+                    try? localFM.copyItem(at: file, to: dest)
+                    result.append(dest)
+                }
             }
             return result
         }.value
@@ -321,7 +345,8 @@ class DataStore: ObservableObject {
 
         let dailyCSVs = files.filter { url in
             let name = url.lastPathComponent
-            return url.pathExtension == "csv" && name != "flareups.csv" && !name.contains(today)
+            // hasSuffix covers both flareups.csv and manual_flareups.csv
+            return url.pathExtension == "csv" && !name.hasSuffix("flareups.csv") && !name.contains(today)
         }
 
         for file in dailyCSVs {
@@ -342,7 +367,7 @@ class DataStore: ObservableObject {
 
         for file in files {
             let name = file.lastPathComponent
-            guard name != "flareups.csv" else { continue }
+            guard !name.hasSuffix("flareups.csv") else { continue }
             guard let dateStr = extractDate(from: name) else { continue }
             if dateStr < cutoff {
                 try? fm.removeItem(at: file)
@@ -354,7 +379,7 @@ class DataStore: ObservableObject {
         guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return }
         for file in files {
             let name = file.lastPathComponent
-            guard name != "flareups.csv" else { continue }
+            guard !name.hasSuffix("flareups.csv") else { continue }
             if let dateStr = extractDate(from: name), dateStr < today {
                 try? fm.removeItem(at: file)
             }

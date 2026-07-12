@@ -58,9 +58,28 @@ def load_acc(data_dir: Path) -> pd.DataFrame:
 
 
 def load_flareups(data_dir: Path) -> pd.DataFrame:
-    df = pd.read_csv(data_dir / "flareups.csv")
+    """Auto-detected + user-logged flareups, both used as positive labels.
+
+    Manual flareups (manual_flareups.csv) are episodes the HR-threshold detector
+    missed — the independent ground truth that lets the model learn beyond the
+    rule. `source` is kept for analysis but both contribute equally to labels.
+    """
+    frames = []
+    for name, src in [("flareups.csv", "auto"), ("manual_flareups.csv", "manual")]:
+        p = data_dir / name
+        if p.exists():
+            d = pd.read_csv(p)
+            if len(d):
+                d = d[["start", "end"]].copy()
+                d["source"] = src
+                frames.append(d)
+    if not frames:
+        return pd.DataFrame(columns=["start", "end", "source"])
+    df = pd.concat(frames, ignore_index=True)
     df["start"] = pd.to_datetime(df["start"]).astype("int64") / 1e9
     df["end"]   = pd.to_datetime(df["end"]).astype("int64") / 1e9
+    n_manual = int((df["source"] == "manual").sum())
+    print(f"  ({len(df) - n_manual} auto + {n_manual} manual flareups)")
     return df
 
 
