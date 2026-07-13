@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-DATA_DIR = Path("/Users/paff/Desktop/Projects/POTSMonitor/Henry.POTSMonitor 2026-05-29 18:13.19.715.xcappdata/AppData/Documents/POTSData")
+DATA_DIR = Path("/Users/paff/Desktop/Projects/POTSMonitor/POTSData")
 OUT_CSV  = Path("/Users/paff/Desktop/Projects/POTSMonitor/features.csv")
 
 WINDOW_SEC      = 60.0

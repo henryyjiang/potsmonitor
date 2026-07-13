@@ -39,9 +39,16 @@ def dz(p):
     with open(p, 'rb') as f: return zlib.decompress(f.read(), wbits=-15).decode()
 
 def load_signal(day):
-    p = D / f"ecg_{day}.csv.zlib"
-    if not p.exists(): return None, None
-    df = pd.read_csv(io.StringIO(dz(p)))
+    zp, cp = D / f"ecg_{day}.csv.zlib", D / f"ecg_{day}.csv"
+    if zp.exists():
+        txt = dz(zp)
+    elif cp.exists():
+        txt = cp.read_text()
+    else:
+        return None, None
+    df = pd.read_csv(io.StringIO(txt))
+    if len(df) == 0 or "micro_volts" not in df.columns:
+        return None, None                       # empty / header-only ECG file
     raw = df['micro_volts'].astype(str).str.strip('"')
     counts = raw.str.count(';').values + 1
     sig = np.fromstring(';'.join(raw.values), sep=';')
